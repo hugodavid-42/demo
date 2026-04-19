@@ -2,7 +2,7 @@
 version: "2.0"
 services:
   web:
-    image: ghcr.io/hugodavid-42/demo:dc9909cac803c43cfa877608eaa15e1607332afa
+    image: ghcr.io/hugodavid-42/demo:a0f1b854b39dc1ae532e38e0e6de2d44b51065f7
     expose:
       - port: 80
         as: 80
