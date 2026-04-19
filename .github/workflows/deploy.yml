@@ -8,12 +8,14 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -27,13 +29,13 @@ jobs:
           docker push ghcr.io/hugodavid-42/zestnet:${{ github.sha }}
 
       - name: Update deploy.yaml with new tag
-        run: |
-          sed -i "s|image: ghcr.io/hugodavid-42/zestnet:.*|image: ghcr.io/hugodavid-42/zestnet:${{ github.sha }}|" deploy.yaml
+        run: sed -i "s|image: ghcr.io/hugodavid-42/zestnet:.*|image: ghcr.io/hugodavid-42/zestnet:${{ github.sha }}|" deploy.yaml
 
       - name: Commit updated deploy.yaml
         run: |
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/hugodavid-42/demo.git
           git add deploy.yaml
           git commit -m "update image tag to ${{ github.sha }}"
           git push
