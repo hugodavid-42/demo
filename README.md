@@ -1,304 +1,195 @@
-# Deploying a Static Website on Akash Network
+# akash-static-template
 
-This guide walks you through deploying any static HTML/CSS website on **Akash Network** (decentralized cloud), with automatic builds via **GitHub Actions** and your own custom domain via **Cloudflare**.
-
-> 💡 **Don't have a domain yet?** You can register one at [Namecheap](https://www.namecheap.com), [Gandi](https://www.gandi.net), or [OVH](https://www.ovh.com), then transfer its DNS management to [Cloudflare](https://www.cloudflare.com) for free.
+A ready-to-use template to deploy a static website on **Akash Network** with automatic builds via GitHub Actions and a custom domain via Cloudflare.
 
 ---
 
-## Stack Overview
+## What this template does
 
-| Tool | Role |
-|------|------|
-| **GitHub** | Code storage + automatic Docker image builds |
-| **ghcr.io** | Docker image registry (built into GitHub, free) |
-| **Akash Network** | Decentralized hosting (pays with AKT tokens) |
-| **Cloudflare** | DNS — points your domain to Akash |
+Every time you push code to GitHub, this template automatically:
+1. Builds a Docker image containing your website
+2. Pushes it to GitHub's container registry (ghcr.io)
+3. Updates `deploy.yaml` with the new image tag
 
-### How it all fits together
-
-```
-You edit site/index.html
-        ↓
-git push to GitHub
-        ↓
-GitHub Actions automatically builds a Docker image
-(nginx + your HTML/CSS files)
-        ↓
-Image is pushed to ghcr.io with a unique tag
-        ↓
-deploy.yaml is updated with the new image tag
-        ↓
-You update the deployment on Akash Console
-        ↓
-yourdomain.com shows your updated site ✅
-```
-
----
-
-## Project Structure
-
-```
-demo/
-├── site/
-│   ├── index.html              ← your website (edit this)
-│   └── style.css               ← your styles (edit this)
-├── Dockerfile                  ← packages nginx + your site into a Docker image
-├── deploy.yaml                 ← Akash deployment config
-└── .github/
-    └── workflows/
-        └── deploy.yml          ← automatic build on every git push
-```
+You then paste `deploy.yaml` into Akash Console to update your live site.
 
 ---
 
 ## Prerequisites
 
 - A **GitHub** account → [github.com](https://github.com)
-- An **Akash** wallet with AKT tokens (use **Keplr** browser extension)
-- A **custom domain** — register one at [Namecheap](https://www.namecheap.com), [Gandi](https://www.gandi.net), or [OVH](https://www.ovh.com)
+- A **Keplr** wallet with AKT tokens → [wallet.keplr.app](https://wallet.keplr.app)
+- A **domain name** → register one at [Namecheap](https://www.namecheap.com), [Gandi](https://www.gandi.net) or [OVH](https://www.ovh.com)
 - Your domain's DNS managed on **Cloudflare** → [cloudflare.com](https://www.cloudflare.com) (free plan works)
 
 ---
 
-## Step 1 — Set Up the GitHub Repository
+## Step 1 — Use this template
 
-1. Go to [github.com](https://github.com) and create a new **public** repository (e.g. `demo`)
-2. Clone it locally or initialize it:
+1. Click the green **"Use this template"** button at the top of this page
+2. Click **"Create a new repository"**
+3. Name your repo (e.g. `my-site`)
+4. Make sure it is **Public**
+5. Click **"Create repository"**
+
+---
+
+## Step 2 — Enable workflow permissions
+
+In your new repo:
+
+1. Go to **Settings** → **Actions** → **General**
+2. Scroll down to **Workflow permissions**
+3. Select **Read and write permissions**
+4. Click **Save**
+
+---
+
+## Step 3 — Add your domain as a secret
+
+In your new repo:
+
+1. Go to **Settings** → **Secrets and variables** → **Actions**
+2. Click **New repository secret**
+3. Add this secret:
+
+| Name | Value |
+|------|-------|
+| `DOMAIN` | `yourdomain.com` |
+
+---
+
+## Step 4 — Customize your site
+
+Edit `site/index.html` to make the site yours:
+
+- Update the text under `whoami` with your own description
+- Update the text under `cat about.txt`
+- Replace the `href="#"` on the three links with your real URLs:
+
+```html
+<a href="https://github.com/YOUR_USERNAME">github</a>
+<a href="https://twitter.com/YOUR_USERNAME">twitter</a>
+<a href="https://youtube.com/@YOUR_CHANNEL">youtube</a>
+```
+
+---
+
+## Step 5 — Push and wait for the build
+
+Once you save your changes, commit and push:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/demo.git
-cd demo
-```
-
-3. Create the project structure and add your files (see Project Structure above)
-
-> ⚠️ Always use `git add .` (not `git add *`) — the `*` wildcard ignores hidden folders like `.github/`
-
----
-
-## Step 2 — The Dockerfile
-
-The Dockerfile packages nginx and your website files into a single Docker image:
-
-```dockerfile
-FROM nginx:alpine
-COPY site/ /usr/share/nginx/html
-EXPOSE 80
-```
-
-Nothing to change here — it just works.
-
----
-
-## Step 3 — GitHub Actions Workflow
-
-Create the file `.github/workflows/deploy.yml`:
-
-```yaml
-name: Build & Push Docker Image
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Login to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Build & Push Docker image
-        run: |
-          docker build \
-            -t ghcr.io/YOUR_USERNAME/YOUR_REPO:latest \
-            -t ghcr.io/YOUR_USERNAME/YOUR_REPO:${{ github.sha }} .
-          docker push ghcr.io/YOUR_USERNAME/YOUR_REPO:latest
-          docker push ghcr.io/YOUR_USERNAME/YOUR_REPO:${{ github.sha }}
-
-      - name: Update deploy.yaml with new tag
-        run: |
-          SHA=${{ github.sha }}
-          sed -i "s|image: ghcr.io/YOUR_USERNAME/YOUR_REPO:.*|image: ghcr.io/YOUR_USERNAME/YOUR_REPO:${SHA}|" deploy.yaml
-
-      - name: Commit updated deploy.yaml
-        run: |
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/YOUR_USERNAME/YOUR_REPO.git
-          git add deploy.yaml
-          git commit -m "update image tag"
-          git push
-```
-
-Replace `YOUR_USERNAME` with your GitHub username (lowercase) and `YOUR_REPO` with your repository name.
-
-### Enable workflow write permissions
-
-In your GitHub repo → **Settings** → **Actions** → **General** → **Workflow permissions** → select **"Read and write permissions"** → Save.
-
----
-
-## Step 4 — The Akash SDL (deploy.yaml)
-
-```yaml
----
-version: "2.0"
-
-services:
-  web:
-    image: ghcr.io/YOUR_USERNAME/YOUR_REPO:latest
-    expose:
-      - port: 80
-        as: 80
-        accept:
-          - yourdomain.org
-          - www.yourdomain.org
-        to:
-          - global: true
-
-profiles:
-  compute:
-    web:
-      resources:
-        cpu:
-          units: 1
-        memory:
-          size: 128Mi
-        storage:
-          - size: 256Mi
-  placement:
-    akash:
-      pricing:
-        web:
-          denom: uakt
-          amount: 100
-      signedBy:
-        anyOf:
-          - akash1365yvmc4s7awdyj3n2sav7xfx76adc6dnmlx63
-        allOf: []
-
-deployment:
-  web:
-    akash:
-      profile: web
-      count: 1
-```
-
-Replace `YOUR_USERNAME`, `YOUR_REPO`, and `yourdomain.org` with your actual values.
-
-> After the first push, GitHub Actions will automatically update the image tag in this file. You don't need to edit it manually after that.
-
----
-
-## Step 5 — Push to GitHub
-
-```bash
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+cd YOUR_REPO
+# edit site/index.html
 git add .
-git commit -m "first commit"
-git branch -M main
-git push -u origin main
+git commit -m "customize my site"
+git push
 ```
 
-Then go to the **Actions** tab on your GitHub repo. You should see the workflow running. Wait for it to turn green ✅.
+Then go to the **Actions** tab of your repo and wait for the workflow to turn green ✅ (takes about 30 seconds).
+
+Once green, run:
+
+```bash
+git pull
+```
+
+This updates your local `deploy.yaml` with the new image tag generated by the workflow.
 
 ---
 
-## Step 6 — Make the Docker Image Public
+## Step 6 — Make your image public
 
-By default, ghcr.io images are private. Akash needs to pull the image, so it must be public.
+By default, ghcr.io images are private. Akash needs to pull the image so it must be public.
 
 1. Go to **github.com/YOUR_USERNAME** → **Packages** tab
-2. Click on **YOUR_REPO**
+2. Click on your image (same name as your repo)
 3. Click **Package settings** (bottom right)
 4. **Change visibility** → **Public** → Confirm
+
+> You only need to do this once.
 
 ---
 
 ## Step 7 — Deploy on Akash
 
 1. Go to [console.akash.network](https://console.akash.network)
-2. Connect your **Keplr** wallet (make sure you have AKT tokens)
+2. Connect your **Keplr** wallet
 3. Click **Deploy** → **From SDL**
-4. Paste the contents of your `deploy.yaml`
-5. Choose a provider and confirm the deployment
-6. Note the **public URL** given by Akash (e.g. `xyz.provider.akash.network`)
+4. Open your `deploy.yaml` file, copy its entire content and paste it
+5. Click **Create Deployment**
+6. Review the bids from providers and select one
+7. Click **Accept Bid** and confirm the transaction in Keplr
+8. Wait for the deployment to start — you will see a **public URL** like `xyz.provider.akash.network`
+
+> Note the public URL — you will need it in the next step.
 
 ---
 
 ## Step 8 — Configure Cloudflare DNS
 
-In your Cloudflare dashboard for your domain → **DNS** → **Records** → Add:
+1. Log in to [cloudflare.com](https://www.cloudflare.com)
+2. Select your domain
+3. Go to **DNS** → **Records**
+4. Add these two records:
 
 | Type | Name | Value | Proxy |
 |------|------|-------|-------|
-| CNAME | `@` | `xyz.provider.akash.network` | ✅ Orange (proxied) |
-| CNAME | `www` | `xyz.provider.akash.network` | ✅ Orange (proxied) |
+| CNAME | `@` | `xyz.provider.akash.network` | ✅ Proxied (orange cloud) |
+| CNAME | `www` | `xyz.provider.akash.network` | ✅ Proxied (orange cloud) |
 
-The orange cloud (proxied) enables free HTTPS automatically via Cloudflare.
+The orange cloud enables free HTTPS automatically.
+
+DNS changes can take a few minutes to propagate. After that, your site is live at `yourdomain.com` ✅
 
 ---
 
-## Updating Your Website
+## Updating your site
 
 Every time you want to update your site:
 
 ```bash
-git pull                        # always pull first!
-# edit site/index.html or site/style.css
+git pull                  # always pull first
+# edit site/index.html
 git add .
-git commit -m "update site"
+git commit -m "update"
 git push
 ```
 
-Then:
-1. Wait for the GitHub Actions workflow to turn green ✅
-2. Run `git pull` to get the updated `deploy.yaml` with the new image tag
-3. Go to **Akash Console** → your deployment → **Update**
-4. Paste the new `deploy.yaml` content → Confirm
+Then wait for the Actions workflow to turn green ✅, run `git pull` again, and:
 
-Your site will reload with the latest version.
+1. Go to **Akash Console** → your deployment
+2. Click **Update**
+3. Paste the new content of `deploy.yaml`
+4. Confirm
+
+Your site will reload with the latest version within a few seconds.
 
 ---
 
-## Common Pitfalls
+## Common issues
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| Workflow not triggering | `.github/` folder missing | Use `git add .` not `git add *` |
-| `repository name must be lowercase` | GitHub org name has uppercase letters | Hardcode your lowercase username in the workflow |
-| `permission_denied` on ghcr.io push | Org restricts package visibility | Use a personal account repo instead |
-| `403` when bot tries to push | Workflow permissions too restrictive | Enable "Read and write permissions" in Settings → Actions |
-| Site not updating after deploy | Akash cached the `:latest` tag | Use commit SHA tags (handled automatically by this workflow) |
-| `fatal: need to specify how to reconcile` | Bot pushed while you were editing | Run `git config pull.rebase false` then `git pull` |
+| Workflow not triggering | `.github/` folder not pushed | Use `git add .` not `git add *` |
+| `403` on image pull | Image is private on ghcr.io | GitHub profile → Packages → your image → Package settings → set to **Public** |
+| `403` when workflow tries to push | Write permissions not enabled | Settings → Actions → General → Read and write permissions |
+| Site not updating on Akash | Old image tag in `deploy.yaml` | Run `git pull` after the workflow finishes, then paste the updated `deploy.yaml` in Akash Console |
+| Branches diverging on git pull | Workflow pushed while you were editing | Run `git config pull.rebase false` then `git pull` |
 
 ---
 
-## Quick Reference
+## Project structure
 
-```bash
-# First time setup
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
-git add .
-git commit -m "first commit"
-git push -u origin main
-
-# Every update
-git pull
-# edit your files
-git add .
-git commit -m "your message"
-git push
-# then update on Akash Console with the new deploy.yaml
+```
+my-site/
+├── site/
+│   └── index.html          ← your website (edit this)
+├── Dockerfile              ← packages nginx + your site into a Docker image
+├── deploy.yaml             ← auto-updated by GitHub Actions, paste into Akash Console
+└── .github/
+    └── workflows/
+        └── deploy.yml      ← automatic build triggered on every git push
 ```
